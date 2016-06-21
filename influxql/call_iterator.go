@@ -1079,3 +1079,79 @@ func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, inclu
 		return nil, fmt.Errorf("unsupported elapsed iterator type: %T", input)
 	}
 }
+
+// newMovingAverageIterator returns an iterator for operating on a moving_average() call.
+func newFloorIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFloorReducer()
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported floor iterator type: %T", input)
+	}
+}
+
+// newHistogramIterator returns an iterator for operating on a histogram() call.
+func newHistogramIterator(input Iterator, opt IteratorOptions, bucketSize float64, minValue float64) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		floatHistogramReduceSlice := NewFloatHistogramReduceSliceFunc(bucketSize, minValue)
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatSliceFuncReducer(floatHistogramReduceSlice)
+			return fn, fn
+		}
+		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+	default:
+		return nil, fmt.Errorf("unsupported histogram iterator type: %T", input)
+	}
+}
+
+// NewFloatHistogramReduceSliceFunc returns the histogram for a window.
+func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) FloatReduceSliceFunc {
+	return func(a []FloatPoint) []FloatPoint {
+		findMin := minValue == math.MaxFloat64
+		maxValue := -math.MaxFloat64
+
+		for _, point := range a {
+			if point.Value > maxValue {
+				maxValue = point.Value
+			}
+			if findMin && point.Value < minValue {
+				minValue = point.Value
+			}
+		}
+
+		valueRange := maxValue - minValue
+		bucketCount := int(valueRange / bucketSize) + 1
+		if bucketCount <= 0 || bucketCount > 100000 {
+			return nil
+		}
+
+		buckets := make([]uint32, bucketCount)
+		for i := 0; i<bucketCount; i++ {
+			buckets[i] = 0
+		}
+
+		for _, point := range a {
+			if point.Value < minValue {
+				buckets[0]++
+			} else {
+				buckets[int((point.Value - minValue)/bucketSize)]++
+			}
+		}
+		
+		result := make([]FloatPoint, bucketCount)
+		for i, bucketCount := range buckets {
+			result[i].Time = 1000000000 * int64(minValue + float64(i) * bucketSize + bucketSize / 2.0)
+			result[i].Value = float64(bucketCount)
+			result[i].Aggregated = bucketCount
+
+			// println(i, result[i].Time, int32(result[i].Value))
+		}
+
+		return result
+	}
+}

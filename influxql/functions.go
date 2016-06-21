@@ -317,6 +317,34 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 	}
 }
 
+
+// FloatFloorReducer calculates the floor of the aggregated points.
+type FloatFloorReducer struct {
+	curr FloatPoint
+}
+
+// NewFloatFloorReducer creates a new FloatFloorReducer.
+func NewFloatFloorReducer() *FloatFloorReducer {
+	return &FloatFloorReducer{
+		curr: FloatPoint{Nil: true},
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer and updates the current window.
+func (r *FloatFloorReducer) AggregateFloat(p *FloatPoint) {
+	r.curr = *p
+}
+
+// Emit emits the floor of the current point. Emit should be called
+// after every call to AggregateFloat and it will produce one point
+func (r *FloatFloorReducer) Emit() []FloatPoint {
+	if r.curr.Nil {
+		return nil
+	}
+
+	return []FloatPoint{{Time: r.curr.Time, Value: math.Floor(r.curr.Value)}}
+}
+
 // FloatHoltWintersReducer forecasts a series into the future.
 // This is done using the Holt-Winters damped method.
 //    1. Using the series the initial values are calculated using a SSE.

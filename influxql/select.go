@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"time"
+	"math"
 )
 
 // SelectOptions are options that customize the select call.
@@ -268,7 +269,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 			opt.Interval = Interval{}
 
 			return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
+		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed", "floor":
 			if !opt.Interval.IsZero() {
 				if opt.Ascending {
 					opt.StartTime -= int64(opt.Interval.Duration)
@@ -302,6 +303,8 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 					}
 				}
 				return newMovingAverageIterator(input, int(n.Val), opt)
+			case "floor":
+				return newFloorIterator(input, opt)
 			}
 			panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 		default:
@@ -414,6 +417,30 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 						percentile = float64(arg.Val)
 					}
 					return newPercentileIterator(input, opt, percentile)
+				case "histogram":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt, false)
+					if err != nil {
+						return nil, err
+					}
+					var bucketSize float64
+					switch arg := expr.Args[1].(type) {
+					case *NumberLiteral:
+						bucketSize = arg.Val
+					case *IntegerLiteral:
+						bucketSize = float64(arg.Val)
+					}
+					var minValue float64
+					if len(expr.Args) == 2 {
+						minValue = math.MaxFloat64
+					} else {
+						switch arg := expr.Args[2].(type) {
+						case *NumberLiteral:
+							minValue = arg.Val
+						case *IntegerLiteral:
+							minValue = float64(arg.Val)
+						}						
+					}
+					return newHistogramIterator(input, opt, bucketSize, minValue)
 				default:
 					return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 				}

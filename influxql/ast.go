@@ -1486,7 +1486,7 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 	onlySelectors := true
 	for k := range calls {
 		switch k {
-		case "top", "bottom", "max", "min", "first", "last", "percentile":
+		case "top", "bottom", "max", "min", "first", "last", "percentile", "histogram":
 		default:
 			onlySelectors = false
 			break
@@ -1539,7 +1539,7 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 		return err
 	}
 	if exp, got := 2, len(expr.Args); got != exp {
-		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+		return fmt.Errorf("invalid number of arguments for percentile, expected %d, got %d", exp, got)
 	}
 
 	switch expr.Args[0].(type) {
@@ -1555,6 +1555,41 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 	default:
 		return fmt.Errorf("expected float argument in percentile()")
 	}
+}
+
+// validHistogramAggr determines if HISTOGRAM has valid arguments.
+func (s *SelectStatement) validHistogramAggr(expr *Call) error {
+	if err := s.validSelectWithAggregate(); err != nil {
+		return err
+	}
+	if got := len(expr.Args); got > 3 || got < 2 {
+		return fmt.Errorf("invalid number of arguments for histogram function, expected at least 2 but no more than 3, got %d", got)
+	}
+
+	switch expr.Args[0].(type) {
+	case *VarRef:
+		// do nothing
+	default:
+		return fmt.Errorf("expected field argument in histogram()")
+	}
+
+	switch expr.Args[1].(type) {
+	case *IntegerLiteral, *NumberLiteral:
+		return nil
+	default:
+		return fmt.Errorf("expected float argument in histogram() bucket size")
+	}
+
+	if len(expr.Args) == 3 {
+		switch expr.Args[2].(type) {
+		case *IntegerLiteral, *NumberLiteral:
+			return nil
+		default:
+			return fmt.Errorf("expected float argument in histogram() lower bound")
+		}
+	}
+
+	return nil
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
@@ -1618,9 +1653,13 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 						if err := s.validPercentileAggr(c); err != nil {
 							return err
 						}
+					case "histogram":
+						if err := s.validHistogramAggr(c); err != nil {
+							return err
+						}
 					default:
 						if exp, got := 1, len(c.Args); got != exp {
-							return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+							return fmt.Errorf("invalid number of arguments for aggregate function %s, expected %d, got %d", c.Name, exp, got)
 						}
 
 						switch fc := c.Args[0].(type) {
@@ -1649,6 +1688,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				}
 			case "percentile":
 				if err := s.validPercentileAggr(expr); err != nil {
+					return err
+				}
+			case "histogram":
+				if err := s.validHistogramAggr(expr); err != nil {
 					return err
 				}
 			case "holt_winters", "holt_winters_with_fit":
@@ -1685,7 +1728,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							return fmt.Errorf("count(distinct <field>) can only have one argument")
 						}
 					}
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+					return fmt.Errorf("invalid number of arguments for simple function %s, expected %d, got %d", expr.Name, exp, got)
 				}
 				switch fc := expr.Args[0].(type) {
 				case *VarRef:
