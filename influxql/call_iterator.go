@@ -1114,6 +1114,9 @@ func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) Floa
 	return func(a []FloatPoint) []FloatPoint {
 		findMin := minValue == math.MaxFloat64
 		maxValue := -math.MaxFloat64
+		var minTime int64
+
+		minTime = math.MaxInt64
 
 		for _, point := range a {
 			if point.Value > maxValue {
@@ -1121,6 +1124,9 @@ func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) Floa
 			}
 			if findMin && point.Value < minValue {
 				minValue = point.Value
+			}
+			if point.Time < minTime {
+				minTime = point.Time
 			}
 		}
 
@@ -1147,11 +1153,10 @@ func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) Floa
 		for i, bucketCount := range buckets {
 			bucketNumber := int64(minValue + float64(i) * bucketSize + bucketSize / 2.0)
 
-			result[i].Time = bucketNumber * 1000000000
+			result[i].Time = minTime
 			result[i].Value = float64(bucketCount)
 			result[i].Aggregated = bucketCount
 			result[i].Aux = []interface{}{float64(bucketNumber)}
-			// println(i, result[i].Time, int32(result[i].Value))
 		}
 
 		return result

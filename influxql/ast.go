@@ -1218,6 +1218,11 @@ func (s *SelectStatement) ColumnNames() []string {
 						columnFields = append(columnFields, &Field{Expr: ref})
 					}
 				}
+			} else if f.Name == "histogram" {
+				ref, ok := f.Args[0].(*VarRef)
+				if ok {
+					columnFields = append(columnFields, &Field{Expr: ref})
+				}
 			}
 		}
 	}
