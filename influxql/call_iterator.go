@@ -1126,7 +1126,7 @@ func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) Floa
 
 		valueRange := maxValue - minValue
 		bucketCount := int(valueRange / bucketSize) + 1
-		if bucketCount <= 0 || bucketCount > 100000 {
+		if bucketCount <= 0 || bucketCount > 10000000 {
 			return nil
 		}
 
@@ -1145,10 +1145,12 @@ func NewFloatHistogramReduceSliceFunc(bucketSize float64, minValue float64) Floa
 		
 		result := make([]FloatPoint, bucketCount)
 		for i, bucketCount := range buckets {
-			result[i].Time = 1000000000 * int64(minValue + float64(i) * bucketSize + bucketSize / 2.0)
+			bucketNumber := int64(minValue + float64(i) * bucketSize + bucketSize / 2.0)
+
+			result[i].Time = bucketNumber * 1000000000
 			result[i].Value = float64(bucketCount)
 			result[i].Aggregated = bucketCount
-
+			result[i].Aux = []interface{}{float64(bucketNumber)}
 			// println(i, result[i].Time, int32(result[i].Value))
 		}
 

@@ -54,7 +54,7 @@ func Select(stmt *SelectStatement, ic IteratorCreator, sopt *SelectOptions) ([]I
 		return buildAuxIterators(stmt.Fields, ic, opt)
 	}
 
-	// Include auxiliary fields from top() and bottom()
+	// Include auxiliary fields from histogram(),  top() and bottom()
 	extraFields := 0
 	for call := range info.calls {
 		if call.Name == "top" || call.Name == "bottom" {
@@ -63,6 +63,9 @@ func Select(stmt *SelectStatement, ic IteratorCreator, sopt *SelectOptions) ([]I
 				opt.Aux = append(opt.Aux, *ref)
 				extraFields++
 			}
+		} else if call.Name == "histogram" {
+			// opt.Aux = append(opt.Aux, *ref)
+			// extraFields++
 		}
 	}
 
@@ -451,7 +454,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 			}
 
 			if !selector || !opt.Interval.IsZero() {
-				if expr.Name != "top" && expr.Name != "bottom" {
+				if expr.Name != "top" && expr.Name != "bottom" && expr.Name != "histogram" {
 					itr = NewIntervalIterator(itr, opt)
 				}
 				if !opt.Interval.IsZero() && opt.Fill != NoFill {
