@@ -299,7 +299,6 @@ func (h *floatMergeHeap) Pop() interface{} {
 
 type floatMergeHeapItem struct {
 	itr *bufFloatIterator
-	err error
 }
 
 // floatSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -308,7 +307,6 @@ type floatSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   floatSortedMergeHeap
 	init   bool
-	point  FloatPoint
 }
 
 // newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
@@ -558,7 +556,7 @@ func (itr *floatLimitIterator) Next() (*FloatPoint, error) {
 
 type floatFillIterator struct {
 	input     *bufFloatIterator
-	prev      *FloatPoint
+	prev      FloatPoint
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
@@ -596,6 +594,7 @@ func newFloatFillIterator(input FloatIterator, expr Expr, opt IteratorOptions) *
 
 	return &floatFillIterator{
 		input:     newBufFloatIterator(input),
+		prev:      FloatPoint{Nil: true},
 		startTime: startTime,
 		endTime:   endTime,
 		auxFields: auxFields,
@@ -649,7 +648,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
-		itr.prev = nil
+		itr.prev = FloatPoint{Nil: true}
 		break
 	}
 
@@ -672,7 +671,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		case NumberFill:
 			p.Value = castToFloat(itr.opt.FillValue)
 		case PreviousFill:
-			if itr.prev != nil {
+			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
 				p.Nil = itr.prev.Nil
 			} else {
@@ -680,7 +679,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 			}
 		}
 	} else {
-		itr.prev = p
+		itr.prev = *p
 	}
 
 	// Advance the expected time. Do not advance to a new window here
@@ -2357,7 +2356,6 @@ func (h *integerMergeHeap) Pop() interface{} {
 
 type integerMergeHeapItem struct {
 	itr *bufIntegerIterator
-	err error
 }
 
 // integerSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -2366,7 +2364,6 @@ type integerSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   integerSortedMergeHeap
 	init   bool
-	point  IntegerPoint
 }
 
 // newIntegerSortedMergeIterator returns an instance of integerSortedMergeIterator.
@@ -2616,7 +2613,7 @@ func (itr *integerLimitIterator) Next() (*IntegerPoint, error) {
 
 type integerFillIterator struct {
 	input     *bufIntegerIterator
-	prev      *IntegerPoint
+	prev      IntegerPoint
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
@@ -2654,6 +2651,7 @@ func newIntegerFillIterator(input IntegerIterator, expr Expr, opt IteratorOption
 
 	return &integerFillIterator{
 		input:     newBufIntegerIterator(input),
+		prev:      IntegerPoint{Nil: true},
 		startTime: startTime,
 		endTime:   endTime,
 		auxFields: auxFields,
@@ -2707,7 +2705,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
-		itr.prev = nil
+		itr.prev = IntegerPoint{Nil: true}
 		break
 	}
 
@@ -2730,7 +2728,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		case NumberFill:
 			p.Value = castToInteger(itr.opt.FillValue)
 		case PreviousFill:
-			if itr.prev != nil {
+			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
 				p.Nil = itr.prev.Nil
 			} else {
@@ -2738,7 +2736,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 			}
 		}
 	} else {
-		itr.prev = p
+		itr.prev = *p
 	}
 
 	// Advance the expected time. Do not advance to a new window here
@@ -4412,7 +4410,6 @@ func (h *stringMergeHeap) Pop() interface{} {
 
 type stringMergeHeapItem struct {
 	itr *bufStringIterator
-	err error
 }
 
 // stringSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -4421,7 +4418,6 @@ type stringSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   stringSortedMergeHeap
 	init   bool
-	point  StringPoint
 }
 
 // newStringSortedMergeIterator returns an instance of stringSortedMergeIterator.
@@ -4671,7 +4667,7 @@ func (itr *stringLimitIterator) Next() (*StringPoint, error) {
 
 type stringFillIterator struct {
 	input     *bufStringIterator
-	prev      *StringPoint
+	prev      StringPoint
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
@@ -4709,6 +4705,7 @@ func newStringFillIterator(input StringIterator, expr Expr, opt IteratorOptions)
 
 	return &stringFillIterator{
 		input:     newBufStringIterator(input),
+		prev:      StringPoint{Nil: true},
 		startTime: startTime,
 		endTime:   endTime,
 		auxFields: auxFields,
@@ -4762,7 +4759,7 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
-		itr.prev = nil
+		itr.prev = StringPoint{Nil: true}
 		break
 	}
 
@@ -4785,7 +4782,7 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		case NumberFill:
 			p.Value = castToString(itr.opt.FillValue)
 		case PreviousFill:
-			if itr.prev != nil {
+			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
 				p.Nil = itr.prev.Nil
 			} else {
@@ -4793,7 +4790,7 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 			}
 		}
 	} else {
-		itr.prev = p
+		itr.prev = *p
 	}
 
 	// Advance the expected time. Do not advance to a new window here
@@ -6467,7 +6464,6 @@ func (h *booleanMergeHeap) Pop() interface{} {
 
 type booleanMergeHeapItem struct {
 	itr *bufBooleanIterator
-	err error
 }
 
 // booleanSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -6476,7 +6472,6 @@ type booleanSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   booleanSortedMergeHeap
 	init   bool
-	point  BooleanPoint
 }
 
 // newBooleanSortedMergeIterator returns an instance of booleanSortedMergeIterator.
@@ -6726,7 +6721,7 @@ func (itr *booleanLimitIterator) Next() (*BooleanPoint, error) {
 
 type booleanFillIterator struct {
 	input     *bufBooleanIterator
-	prev      *BooleanPoint
+	prev      BooleanPoint
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
@@ -6764,6 +6759,7 @@ func newBooleanFillIterator(input BooleanIterator, expr Expr, opt IteratorOption
 
 	return &booleanFillIterator{
 		input:     newBufBooleanIterator(input),
+		prev:      BooleanPoint{Nil: true},
 		startTime: startTime,
 		endTime:   endTime,
 		auxFields: auxFields,
@@ -6817,7 +6813,7 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
-		itr.prev = nil
+		itr.prev = BooleanPoint{Nil: true}
 		break
 	}
 
@@ -6840,7 +6836,7 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		case NumberFill:
 			p.Value = castToBoolean(itr.opt.FillValue)
 		case PreviousFill:
-			if itr.prev != nil {
+			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
 				p.Nil = itr.prev.Nil
 			} else {
@@ -6848,7 +6844,7 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 			}
 		}
 	} else {
-		itr.prev = p
+		itr.prev = *p
 	}
 
 	// Advance the expected time. Do not advance to a new window here

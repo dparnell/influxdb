@@ -459,10 +459,6 @@ type CreateDatabaseStatement struct {
 	// Name of the database to be created.
 	Name string
 
-	// IfNotExists indicates whether to return without error if the database
-	// already exists.
-	IfNotExists bool
-
 	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy
 	RetentionPolicyCreate bool
 
@@ -483,9 +479,6 @@ type CreateDatabaseStatement struct {
 func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
-	if s.IfNotExists {
-		_, _ = buf.WriteString("IF NOT EXISTS ")
-	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	if s.RetentionPolicyCreate {
 		_, _ = buf.WriteString(" WITH DURATION ")
@@ -512,19 +505,12 @@ func (s *CreateDatabaseStatement) RequiredPrivileges() (ExecutionPrivileges, err
 type DropDatabaseStatement struct {
 	// Name of the database to be dropped.
 	Name string
-
-	// IfExists indicates whether to return without error if the database
-	// does not exists.
-	IfExists bool
 }
 
 // String returns a string representation of the drop database statement.
 func (s *DropDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP DATABASE ")
-	if s.IfExists {
-		_, _ = buf.WriteString("IF EXISTS ")
-	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
@@ -996,20 +982,13 @@ func (s *SelectStatement) TimeFieldName() string {
 
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
-	clone := &SelectStatement{
-		Fields:     make(Fields, 0, len(s.Fields)),
-		Dimensions: make(Dimensions, 0, len(s.Dimensions)),
-		Sources:    cloneSources(s.Sources),
-		SortFields: make(SortFields, 0, len(s.SortFields)),
-		Condition:  CloneExpr(s.Condition),
-		Limit:      s.Limit,
-		Offset:     s.Offset,
-		SLimit:     s.SLimit,
-		SOffset:    s.SOffset,
-		Fill:       s.Fill,
-		FillValue:  s.FillValue,
-		IsRawQuery: s.IsRawQuery,
-	}
+	clone := *s
+	clone.Fields = make(Fields, 0, len(s.Fields))
+	clone.Dimensions = make(Dimensions, 0, len(s.Dimensions))
+	clone.Sources = cloneSources(s.Sources)
+	clone.SortFields = make(SortFields, 0, len(s.SortFields))
+	clone.Condition = CloneExpr(s.Condition)
+
 	if s.Target != nil {
 		clone.Target = &Target{
 			Measurement: &Measurement{
@@ -1029,7 +1008,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 	for _, f := range s.SortFields {
 		clone.SortFields = append(clone.SortFields, &SortField{Name: f.Name, Ascending: f.Ascending})
 	}
-	return clone
+	return &clone
 }
 
 func cloneSources(sources Sources) Sources {
@@ -1140,6 +1119,68 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 						continue
 					}
 					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: ref.Val, Type: ref.Type}})
+				}
+			case *Call:
+				// Clone a template that we can modify and use for new fields.
+				template := CloneExpr(expr).(*Call)
+
+				// Search for the call with a wildcard by continuously descending until
+				// we no longer have a call.
+				call := template
+				for len(call.Args) > 0 {
+					arg, ok := call.Args[0].(*Call)
+					if !ok {
+						break
+					}
+					call = arg
+				}
+
+				// Check if this field value is a wildcard.
+				if len(call.Args) == 0 {
+					rwFields = append(rwFields, f)
+					continue
+				}
+
+				wc, ok := call.Args[0].(*Wildcard)
+				if ok && wc.Type == TAG {
+					return s, fmt.Errorf("unable to use tag wildcard in %s()", call.Name)
+				} else if !ok {
+					rwFields = append(rwFields, f)
+					continue
+				}
+
+				// All types that can expand wildcards support float and integer.
+				supportedTypes := map[DataType]struct{}{
+					Float:   struct{}{},
+					Integer: struct{}{},
+				}
+
+				// Add additional types for certain functions.
+				switch call.Name {
+				case "count", "first", "last", "distinct", "elapsed":
+					supportedTypes[String] = struct{}{}
+					supportedTypes[Boolean] = struct{}{}
+				case "stddev":
+					supportedTypes[String] = struct{}{}
+				case "min", "max":
+					supportedTypes[Boolean] = struct{}{}
+				}
+
+				for _, ref := range fields {
+					// Do not expand tags within a function call. It likely won't do anything
+					// anyway and will be the wrong thing in 99% of cases.
+					if ref.Type == Tag {
+						continue
+					} else if _, ok := supportedTypes[ref.Type]; !ok {
+						continue
+					}
+
+					// Make a new expression and replace the wildcard within this cloned expression.
+					call.Args[0] = &VarRef{Val: ref.Val, Type: ref.Type}
+					rwFields = append(rwFields, &Field{
+						Expr:  CloneExpr(template),
+						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
+					})
 				}
 			default:
 				rwFields = append(rwFields, f)
@@ -1369,15 +1410,17 @@ func (s *SelectStatement) HasWildcard() bool {
 }
 
 // HasFieldWildcard returns whether or not the select statement has at least 1 wildcard in the fields
-func (s *SelectStatement) HasFieldWildcard() bool {
-	for _, f := range s.Fields {
-		_, ok := f.Expr.(*Wildcard)
-		if ok {
-			return true
+func (s *SelectStatement) HasFieldWildcard() (hasWildcard bool) {
+	WalkFunc(s.Fields, func(n Node) {
+		if hasWildcard {
+			return
 		}
-	}
-
-	return false
+		_, ok := n.(*Wildcard)
+		if ok {
+			hasWildcard = true
+		}
+	})
+	return hasWildcard
 }
 
 // HasDimensionWildcard returns whether or not the select statement has
@@ -1673,7 +1716,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 						}
 
 						switch fc := c.Args[0].(type) {
-						case *VarRef:
+						case *VarRef, *Wildcard:
 							// do nothing
 						case *Call:
 							if fc.Name != "distinct" || expr.Name != "count" {
@@ -1741,7 +1784,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid number of arguments for simple function %s, expected %d, got %d", expr.Name, exp, got)
 				}
 				switch fc := expr.Args[0].(type) {
-				case *VarRef:
+				case *VarRef, *Wildcard:
 					// do nothing
 				case *Call:
 					if fc.Name != "distinct" || expr.Name != "count" {
@@ -3119,7 +3162,7 @@ func encodeMeasurement(mm *Measurement) *internal.Measurement {
 		IsTarget:        proto.Bool(mm.IsTarget),
 	}
 	if mm.Regex != nil {
-		pb.Regex = proto.String(mm.Regex.String())
+		pb.Regex = proto.String(mm.Regex.Val.String())
 	}
 	return pb
 }
@@ -3525,7 +3568,7 @@ func CloneExpr(expr Expr) Expr {
 	case *VarRef:
 		return &VarRef{Val: expr.Val, Type: expr.Type}
 	case *Wildcard:
-		return &Wildcard{}
+		return &Wildcard{Type: expr.Type}
 	}
 	panic("unreachable")
 }

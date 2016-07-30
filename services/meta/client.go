@@ -24,14 +24,6 @@ import (
 )
 
 const (
-	// errSleep is the time to sleep after we've failed on every metaserver
-	// before making another pass
-	errSleep = time.Second
-
-	// maxRetries is the maximum number of attemps to make before returning
-	// a failure to the caller
-	maxRetries = 10
-
 	// SaltBytes is the number of bytes used for salts
 	SaltBytes = 32
 
@@ -74,13 +66,12 @@ type authUser struct {
 func NewClient(config *Config) *Client {
 	return &Client{
 		cacheData: &Data{
-			ClusterID: uint64(uint64(rand.Int63())),
+			ClusterID: uint64(rand.Int63()),
 			Index:     1,
-			DefaultRetentionPolicyName: config.DefaultRetentionPolicyName,
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
-		logger:              log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
+		logger:              log.New(ioutil.Discard, "[metaclient] ", log.LstdFlags),
 		authCache:           make(map[string]authUser, 0),
 		path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,
@@ -1045,14 +1036,6 @@ func (c *Client) Load() error {
 		return err
 	}
 	return nil
-}
-
-type errCommand struct {
-	msg string
-}
-
-func (e errCommand) Error() string {
-	return e.msg
 }
 
 type uint64Slice []uint64

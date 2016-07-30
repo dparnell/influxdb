@@ -514,6 +514,7 @@ func (a auxIteratorFields) sendError(err error) {
 
 // DrainIterator reads all points from an iterator.
 func DrainIterator(itr Iterator) {
+	defer itr.Close()
 	switch itr := itr.(type) {
 	case FloatIterator:
 		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
@@ -534,6 +535,7 @@ func DrainIterator(itr Iterator) {
 
 // DrainIterators reads all points from all iterators.
 func DrainIterators(itrs []Iterator) {
+	defer Iterators(itrs).Close()
 	for {
 		var hasData bool
 
@@ -618,6 +620,8 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 			itr, err := ic.CreateIterator(opt)
 			if err != nil {
 				return err
+			} else if itr == nil {
+				continue
 			}
 			itrs = append(itrs, itr)
 		}
@@ -625,6 +629,10 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 	}(); err != nil {
 		Iterators(itrs).Close()
 		return nil, err
+	}
+
+	if len(itrs) == 0 {
+		return nil, nil
 	}
 
 	return Iterators(itrs).Merge(opt)

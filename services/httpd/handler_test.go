@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -38,8 +37,8 @@ func TestHandler_Query(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -102,8 +101,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=user1&p=abcd&db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test the handler with valid JWT bearer token.
@@ -116,8 +115,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test the handler with JWT token signed with invalid key.
@@ -130,8 +129,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"signature is invalid"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"signature is invalid"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test handler with valid JWT token carrying non-existant user.
@@ -142,8 +141,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"user not found"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"user not found"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test handler with expired JWT token.
@@ -170,8 +169,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"token expiration required"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"token expiration required"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -205,8 +204,8 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"},{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"},{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -223,8 +222,8 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -258,8 +257,8 @@ func TestHandler_Query_ErrQueryRequired(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query", nil))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"missing required parameter \"q\""}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"missing required parameter \"q\""}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -270,24 +269,85 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?q=SELECT", nil))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"error parsing query: found EOF, expected identifier, string, number, bool at line 1, char 8"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"error parsing query: found EOF, expected identifier, string, number, bool at line 1, char 8"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
-// Ensure the handler returns a status 401 if the user is not authorized.
-// func TestHandler_Query_ErrUnauthorized(t *testing.T) {
-// 	h := NewHandler(false)
-// 	h.QueryExecutor.AuthorizeFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
-// 		return errors.New("marker")
-// 	}
+// Ensure the handler returns an appropriate 401 or 403 status when authentication or authorization fails.
+func TestHandler_Query_ErrAuthorize(t *testing.T) {
+	h := NewHandler(true)
+	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
+		return errors.New("marker")
+	}
+	h.MetaClient.UsersFn = func() []meta.UserInfo {
+		return []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+		for _, user := range h.MetaClient.Users() {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
 
-// 	w := httptest.NewRecorder()
-// 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=bar&db=foo&q=SHOW+SERIES+FROM+bar", nil))
-// 	if w.Code != http.StatusUnauthorized {
-// 		t.Fatalf("unexpected status: %d", w.Code)
-// 	}
-// }
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/query?q=SHOW+DATABASES",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/query?q=SHOW+DATABASES",
+			code:     http.StatusForbidden,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/query?q=SHOW+DATABASES",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
 
 // Ensure the handler returns a status 200 if an error is returned in the result.
 func TestHandler_Query_ErrResult(t *testing.T) {
@@ -300,8 +360,8 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SHOW+SERIES+from+bin", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"error":"measurement not found"}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"error":"measurement not found"}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -391,28 +451,6 @@ func TestHandler_HandleBadRequestBody(t *testing.T) {
 	}
 }
 
-func TestMarshalJSON_NoPretty(t *testing.T) {
-	if b := httpd.MarshalJSON(struct {
-		Name string `json:"name"`
-	}{Name: "foo"}, false); string(b) != `{"name":"foo"}` {
-		t.Fatalf("unexpected bytes: %s", b)
-	}
-}
-
-func TestMarshalJSON_Pretty(t *testing.T) {
-	if b := httpd.MarshalJSON(struct {
-		Name string `json:"name"`
-	}{Name: "foo"}, true); string(b) != "{\n    \"name\": \"foo\"\n}" {
-		t.Fatalf("unexpected bytes: %q", string(b))
-	}
-}
-
-func TestMarshalJSON_Error(t *testing.T) {
-	if b := httpd.MarshalJSON(&invalidJSON{}, true); string(b) != "json: error calling MarshalJSON for type *httpd_test.invalidJSON: marker" {
-		t.Fatalf("unexpected bytes: %q", string(b))
-	}
-}
-
 type invalidJSON struct{}
 
 func (*invalidJSON) MarshalJSON() ([]byte, error) { return nil, errors.New("marker") }
@@ -427,14 +465,12 @@ type Handler struct {
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
-	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
-
 	config := httpd.NewConfig()
 	config.AuthEnabled = requireAuthentication
 	config.SharedSecret = "super secret key"
 
 	h := &Handler{
-		Handler: httpd.NewHandler(config, statMap),
+		Handler: httpd.NewHandler(config),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = influxql.NewQueryExecutor()

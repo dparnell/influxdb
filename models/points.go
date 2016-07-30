@@ -401,7 +401,7 @@ func scanMeasurement(buf []byte, i int) (int, int, error) {
 	// Check first byte of measurement, anything except a comma is fine.
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
-	if buf[i] == ',' {
+	if i >= len(buf) || buf[i] == ',' {
 		return -1, i, fmt.Errorf("missing measurement")
 	}
 
@@ -546,15 +546,6 @@ func less(buf []byte, indices []int, i, j int) bool {
 	_, a := scanTo(buf, indices[i], '=')
 	_, b := scanTo(buf, indices[j], '=')
 	return bytes.Compare(a, b) < 0
-}
-
-func isFieldEscapeChar(b byte) bool {
-	for c := range escape.Codes {
-		if c == b {
-			return true
-		}
-	}
-	return false
 }
 
 // scanFields scans buf, starting at i for the fields section of a point.  It returns
@@ -1066,9 +1057,9 @@ func unescapeTag(in []byte) []byte {
 	return in
 }
 
-// escapeStringField returns a copy of in with any double quotes or
+// EscapeStringField returns a copy of in with any double quotes or
 // backslashes with escaped values
-func escapeStringField(in string) string {
+func EscapeStringField(in string) string {
 	var out []byte
 	i := 0
 	for {
@@ -1399,6 +1390,20 @@ func (p *point) UnixNano() int64 {
 // values.
 type Tags map[string]string
 
+// Merge merges the tags combining the two. If both define a tag with the
+// same key, the merged value overwrites the old value.
+// A new map is returned.
+func (t Tags) Merge(other map[string]string) Tags {
+	merged := make(map[string]string, len(t)+len(other))
+	for k, v := range t {
+		merged[k] = v
+	}
+	for k, v := range other {
+		merged[k] = v
+	}
+	return Tags(merged)
+}
+
 // HashKey hashes all of a tag's keys.
 func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
@@ -1571,14 +1576,14 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(escapeStringField(t))...)
+			b = append(b, []byte(EscapeStringField(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
 		default:
 			// Can't determine the type, so convert to string
 			b = append(b, '"')
-			b = append(b, []byte(escapeStringField(fmt.Sprintf("%v", v)))...)
+			b = append(b, []byte(EscapeStringField(fmt.Sprintf("%v", v)))...)
 			b = append(b, '"')
 
 		}
@@ -1588,23 +1593,4 @@ func (p Fields) MarshalBinary() []byte {
 		return b[0 : len(b)-1]
 	}
 	return b
-}
-
-type indexedSlice struct {
-	indices []int
-	b       []byte
-}
-
-func (s *indexedSlice) Less(i, j int) bool {
-	_, a := scanTo(s.b, s.indices[i], '=')
-	_, b := scanTo(s.b, s.indices[j], '=')
-	return bytes.Compare(a, b) < 0
-}
-
-func (s *indexedSlice) Swap(i, j int) {
-	s.indices[i], s.indices[j] = s.indices[j], s.indices[i]
-}
-
-func (s *indexedSlice) Len() int {
-	return len(s.indices)
 }
